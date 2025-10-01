@@ -4,38 +4,54 @@ import com.cyclesafe.app.data.model.Comment
 import com.cyclesafe.app.data.model.Poi
 import com.cyclesafe.app.data.model.Rating
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
-class PoiRepository(
-    private val firestore: FirebaseFirestore,
-    private val poiDao: com.cyclesafe.app.data.model.PoiDao,
-    private val ratingDao: com.cyclesafe.app.data.model.RatingDao,
-    private val commentDao: com.cyclesafe.app.data.model.CommentDao
-) {
+class PoiRepository(private val firestore: FirebaseFirestore) {
 
-    fun getAllPois(): Flow<List<Poi>> {
-        return poiDao.getAll()
+    fun getAllPois(): Flow<List<Poi>> = callbackFlow {
+        val listenerRegistration = firestore.collection("pois")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                val pois = snapshot?.toObjects(Poi::class.java)
+                if (pois != null) {
+                    trySend(pois)
+                }
+            }
+        awaitClose { listenerRegistration.remove() }
     }
 
-    suspend fun refreshPois() {
-        val snapshot = firestore.collection("pois").get().await()
-        val pois = snapshot.toObjects(Poi::class.java)
-        poiDao.insertAll(pois)
+    fun getCommentsForPoi(poiId: String): Flow<List<Comment>> = callbackFlow {
+        val listenerRegistration = firestore.collection("pois").document(poiId).collection("comments")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                val comments = snapshot?.toObjects(Comment::class.java)
+                if (comments != null) {
+                    trySend(comments)
+                }
+            }
+        awaitClose { listenerRegistration.remove() }
     }
 
-    fun getCommentsForPoi(poiId: String): Flow<List<Comment>> {
-        return commentDao.getCommentsForPoi(poiId)
-    }
-
-    suspend fun refreshComments(poiId: String) {
-        val snapshot = firestore.collection("pois").document(poiId).collection("comments").get().await()
-        val comments = snapshot.toObjects(Comment::class.java)
-        commentDao.insertAll(comments)
-    }
-
-    fun getRatingForUser(poiId: String, userId: String): Flow<Rating?> {
-        return ratingDao.getRatingForUser(poiId, userId)
+    fun getRatingForUser(poiId: String, userId: String): Flow<Rating?> = callbackFlow {
+        val listenerRegistration = firestore.collection("pois").document(poiId).collection("ratings").document(userId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                val rating = snapshot?.toObject(Rating::class.java)
+                trySend(rating)
+            }
+        awaitClose { listenerRegistration.remove() }
     }
 
     suspend fun addRating(poiId: String, userId: String, rating: Float) {
@@ -71,24 +87,22 @@ class PoiRepository(
     suspend fun addPoi(
         name: String,
         description: String,
-        poiType: com.cyclesafe.app.ui.screens.add_poi.PoiType,
+        poiType: String,
         latitude: Double,
         longitude: Double,
         isDangerous: Boolean,
         imageUrl: String?,
-        authorId: String,
-        authorName: String
+        authorId: String
     ) {
         val poi = Poi(
             name = name,
             description = description,
-            type = poiType.name,
+            type = poiType,
             latitude = latitude,
             longitude = longitude,
             dangerous = isDangerous,
             imageUrl = imageUrl,
             authorId = authorId,
-            authorName = authorName,
             createdAt = com.google.firebase.Timestamp.now()
         )
         firestore.collection("pois").add(poi).await()

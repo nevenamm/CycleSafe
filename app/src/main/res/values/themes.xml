@@ -3,4 +3,10 @@
     <style name="Theme.CycleSafe" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Customize your theme here. -->
     </style>
+
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/white</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/bicycle_icon</item>
+        <item name="postSplashScreenTheme">@style/Theme.CycleSafe</item>
+    </style>
 </resources>

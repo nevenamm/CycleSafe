@@ -3,13 +3,14 @@ package com.cyclesafe.app.ui.screens.poi_details
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.cyclesafe.app.data.Injection
 import com.cyclesafe.app.data.model.Comment
 import com.cyclesafe.app.data.model.Poi
 import com.cyclesafe.app.data.repository.PoiRepository
 import com.cyclesafe.app.data.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 
 sealed class PoiDetailsState {
@@ -27,13 +28,16 @@ class PoiDetailsViewModel(application: Application) : AndroidViewModel(applicati
     private val _poiDetailsState = MutableStateFlow<PoiDetailsState>(PoiDetailsState.Loading)
     val poiDetailsState = _poiDetailsState.asStateFlow()
 
+    private val _userRating = MutableStateFlow(0f)
+    val userRating = _userRating.asStateFlow()
+
+    private val _userComment = MutableStateFlow("")
+    val userComment = _userComment.asStateFlow()
+
     fun getPoiDetails(poiId: String) {
         viewModelScope.launch {
             _poiDetailsState.value = PoiDetailsState.Loading
             try {
-                poiRepository.refreshPois()
-                poiRepository.refreshComments(poiId)
-
                 val poiFlow = poiRepository.getAllPois().mapNotNull { pois ->
                     pois.find { it.firestoreId == poiId }
                 }
@@ -47,10 +51,11 @@ class PoiDetailsViewModel(application: Application) : AndroidViewModel(applicati
                     flowOf(0f)
                 }
 
-                combine(poiFlow, commentsFlow, userRatingFlow) { poi, comments, userRating ->
-                    PoiDetailsState.Success(poi, comments, userRating)
-                }.collect {
-                    _poiDetailsState.value = it
+                combine(poiFlow, commentsFlow, userRatingFlow) { poi, comments, rating ->
+                    _userRating.value = rating
+                    PoiDetailsState.Success(poi, comments, rating)
+                }.collect { state ->
+                    _poiDetailsState.value = state
                 }
             } catch (e: Exception) {
                 _poiDetailsState.value = PoiDetailsState.Error(e.message ?: "Failed to fetch POI details")
@@ -58,22 +63,33 @@ class PoiDetailsViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun addRating(poiId: String, rating: Float) {
-        viewModelScope.launch {
-            val userId = auth.currentUser?.uid ?: return@launch
-            poiRepository.addRating(poiId, userId, rating)
-            awardPoints(5)
-        }
+    fun onUserRatingChange(rating: Float) {
+        _userRating.value = rating
     }
 
-    fun addComment(poiId: String, commentText: String) {
+    fun onUserCommentChange(comment: String) {
+        _userComment.value = comment
+    }
+
+    fun addRatingAndComment(poiId: String) {
         viewModelScope.launch {
             val userId = auth.currentUser?.uid ?: return@launch
-            val userName = auth.currentUser?.displayName ?: "Anonymous"
-            poiRepository.addComment(poiId, userId, userName, commentText)
-            awardPoints(2)
-            // Refetch details to show new comment
-            poiRepository.refreshComments(poiId)
+            try {
+                val ratingJob = async { poiRepository.addRating(poiId, userId, _userRating.value) }
+                val awardPointsForRatingJob = async { awardPoints(5) }
+                awaitAll(ratingJob, awardPointsForRatingJob)
+
+                if (_userComment.value.isNotBlank()) {
+                    val user = userRepository.getUser(userId).firstOrNull()
+                    val userName = user?.let { "${it.firstName} ${it.lastName}" } ?: "Anonymous"
+                    val commentJob = async { poiRepository.addComment(poiId, userId, userName, _userComment.value) }
+                    val awardPointsForCommentJob = async { awardPoints(2) }
+                    awaitAll(commentJob, awardPointsForCommentJob)
+                    _userComment.value = ""
+                }
+            } catch (e: Exception) {
+                // Handle error
+            }
         }
     }
 

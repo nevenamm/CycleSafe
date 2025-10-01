@@ -2,13 +2,13 @@ import java.util.Properties
 import java.io.FileInputStream
 
 val localProperties = Properties().apply {
-    load(FileInputStream(rootProject.file("locals")))
+    load(FileInputStream(rootProject.file("local.properties")))
 }
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    id("com.google.devtools.ksp")
+
     id("com.google.gms.google-services")
 }
 
@@ -56,19 +56,9 @@ android {
     }
 }
 
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
-}
-
 dependencies {
 
-    val room_version = "2.7.2"
-    implementation(libs.androidx.room.runtime)
-    ksp("androidx.room:room-compiler:$room_version")
-    implementation(libs.androidx.room.ktx)
-    // optional - Paging 3 Integration
-    implementation("androidx.room:room-paging:$room_version")
-
+    // Google Maps
     implementation(libs.maps.compose)
     implementation(libs.play.services.location)
 
@@ -91,6 +81,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
