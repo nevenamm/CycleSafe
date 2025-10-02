@@ -5,30 +5,87 @@ import android.location.Location
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.cyclesafe.app.data.model.Poi
+import com.cyclesafe.app.data.preferences.UserPreferencesRepository
 import com.cyclesafe.app.data.repository.PoiRepository
 import com.google.android.gms.maps.model.LatLng
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-@OptIn(kotlinx.coroutines.FlowPreview::class)
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val poiRepository: PoiRepository = Injection.providePoiRepository(application.applicationContext)
+    private val prefsRepository: UserPreferencesRepository = Injection.provideUserPreferencesRepository(application.applicationContext)
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery = _searchQuery.asStateFlow()
 
     private val _pois = MutableStateFlow<List<Poi>>(emptyList())
     val pois = _pois.asStateFlow()
 
-    private val _searchRadius = MutableStateFlow(1000f)
-    val searchRadius = _searchRadius.asStateFlow()
+    val searchRadius = prefsRepository.searchRadius.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = 2500f
+    )
 
-    private val _isDangerousFilter = MutableStateFlow(false)
-    val isDangerousFilter = _isDangerousFilter.asStateFlow()
+    val isDangerousFilter = prefsRepository.isDangerousFilter.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = false
+    )
 
     private val _triggerMapAdjustment = MutableSharedFlow<Unit>()
     val triggerMapAdjustment = _triggerMapAdjustment.asSharedFlow()
 
+    private var _currentLocation = MutableStateFlow<LatLng?>(null)
+
+    init {
+        viewModelScope.launch {
+            combine(
+                isDangerousFilter,
+                searchRadius,
+                searchQuery.debounce(300),
+                _currentLocation
+            ) { isDangerous, radius, query, location ->
+                Triple(isDangerous, radius, query to location)
+            }.flatMapLatest { (isDangerous, radius, queryLocationPair) ->
+                val (query, location) = queryLocationPair
+                poiRepository.getMapPois(isDangerous).map {
+                    val filteredByLocation = if (location == null) {
+                        it
+                    } else {
+                        it.filter { poi ->
+                            val distance = FloatArray(1)
+                            Location.distanceBetween(
+                                location.latitude,
+                                location.longitude,
+                                poi.latitude,
+                                poi.longitude,
+                                distance
+                            )
+                            distance[0] <= radius
+                        }
+                    }
+
+                    if (query.isBlank()) {
+                        filteredByLocation
+                    } else {
+                        filteredByLocation.filter { poi ->
+                            poi.name.contains(query, ignoreCase = true) || poi.description.contains(query, ignoreCase = true)
+                        }
+                    }
+                }
+            }.collect { _pois.value = it }
+        }
+    }
+
     fun onSearchRadiusChanged(radius: Float) {
-        _searchRadius.value = radius
+        viewModelScope.launch {
+            prefsRepository.updateSearchRadius(radius)
+        }
     }
 
     fun onSearchClicked() {
@@ -37,38 +94,25 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun onSearchQueryChanged(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun clearFilters() {
+        viewModelScope.launch {
+            _searchQuery.value = ""
+            prefsRepository.updateIsDangerousFilter(false)
+            prefsRepository.updateSearchRadius(2500f)
+        }
+    }
+
     fun onIsDangerousFilterChanged(isDangerous: Boolean) {
-        _isDangerousFilter.value = isDangerous
+        viewModelScope.launch {
+            prefsRepository.updateIsDangerousFilter(isDangerous)
+        }
     }
 
     fun init(currentLocation: LatLng?) {
-        viewModelScope.launch {
-            poiRepository.getAllPois()
-                .combine(searchRadius) { pois, radius ->
-                    if (currentLocation == null) {
-                        pois
-                    } else {
-                        pois.filter { poi ->
-                            val distance = FloatArray(1)
-                            Location.distanceBetween(
-                                currentLocation.latitude,
-                                currentLocation.longitude,
-                                poi.latitude,
-                                poi.longitude,
-                                distance
-                            )
-                            distance[0] <= radius
-                        }
-                    }
-                }
-                .combine(isDangerousFilter) { pois, isDangerous ->
-                    if (!isDangerous) {
-                        pois
-                    } else {
-                        pois.filter { it.dangerous }
-                    }
-                }
-                .collect { _pois.value = it }
-        }
+        _currentLocation.value = currentLocation
     }
 }

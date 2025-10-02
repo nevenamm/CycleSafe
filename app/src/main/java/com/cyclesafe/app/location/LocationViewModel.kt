@@ -3,81 +3,110 @@ package com.cyclesafe.app.location
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.ActivityManager
+import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.cyclesafe.app.services.LocationService
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.LatLng
+import com.cyclesafe.app.data.preferences.UserPreferencesRepository
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
-@SuppressLint("MissingPermission")
-class LocationViewModel : ViewModel() {
+class LocationViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val prefsRepository: UserPreferencesRepository = Injection.provideUserPreferencesRepository(application.applicationContext)
 
     private val _currentLocation = MutableStateFlow<LatLng?>(null)
     val currentLocation = _currentLocation.asStateFlow()
 
-    private val _isTracking = MutableStateFlow(false)
-    val isTracking = _isTracking.asStateFlow()
+    val isTracking = prefsRepository.isTrackingEnabled.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = false
+    )
 
-    private val _requestBackgroundLocationPermission = MutableStateFlow(false)
-    val requestBackgroundLocationPermission = _requestBackgroundLocationPermission.asStateFlow()
+    private val _requestBackgroundLocationPermission = MutableSharedFlow<Unit>()
+    val requestBackgroundLocationPermission = _requestBackgroundLocationPermission.asSharedFlow()
 
+    @SuppressLint("MissingPermission")
     fun updateCurrentLocation(context: Context) {
-        Log.d("LocationViewModel", "updateCurrentLocation called")
-        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-        fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
-            if (loc != null) {
-                Log.d("LocationViewModel", "Location received: ${loc.latitude}, ${loc.longitude}")
-                val userLocation = LatLng(loc.latitude, loc.longitude)
-                _currentLocation.value = userLocation
-            } else {
-                Log.w("LocationViewModel", "Location received is null.")
+        if (hasLocationPermission(context)) {
+            val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                location?.let { _currentLocation.value = LatLng(it.latitude, it.longitude) }
             }
         }
     }
 
     fun onToggleBackgroundTracking(context: Context) {
-        if (_isTracking.value) {
-            context.stopService(Intent(context, LocationService::class.java))
-            _isTracking.value = false
-        } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                    context.startService(Intent(context, LocationService::class.java))
-                    _isTracking.value = true
+        viewModelScope.launch {
+            val wasTracking = isTracking.first()
+            prefsRepository.updateIsTrackingEnabled(!wasTracking)
+            if (!wasTracking) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    _requestBackgroundLocationPermission.emit(Unit)
                 } else {
-                    _requestBackgroundLocationPermission.value = true
+                    startService(context)
                 }
             } else {
-                context.startService(Intent(context, LocationService::class.java))
-                _isTracking.value = true
+                stopService(context)
             }
         }
     }
 
-    fun onPermissionResult(granted: Boolean, context: Context) {
-        Log.d("LocationViewModel", "onPermissionResult called. Granted: $granted")
-        _requestBackgroundLocationPermission.value = false
-        if (granted) {
-            context.startService(Intent(context, LocationService::class.java))
-            _isTracking.value = true
+    fun onPermissionResult(isGranted: Boolean, context: Context) {
+        if (isGranted) {
+            startService(context)
+        } else {
+            viewModelScope.launch {
+                prefsRepository.updateIsTrackingEnabled(false)
+            }
         }
     }
 
     fun checkServiceState(context: Context) {
-        val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        for (service in manager.getRunningServices(Integer.MAX_VALUE)) {
-            if (LocationService::class.java.name == service.service.className) {
-                _isTracking.value = true
-                return
+        viewModelScope.launch {
+            if (isTracking.first()) {
+                startService(context)
             }
         }
-        _isTracking.value = false
+    }
+
+    private fun hasLocationPermission(context: Context): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun startService(context: Context) {
+        val intent = Intent(context, LocationService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
+        }
+    }
+
+    private fun stopService(context: Context) {
+        val intent = Intent(context, LocationService::class.java)
+        context.stopService(intent)
     }
 }

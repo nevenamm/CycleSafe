@@ -2,8 +2,11 @@ package com.cyclesafe.app.data.repository
 
 import com.cyclesafe.app.data.model.Comment
 import com.cyclesafe.app.data.model.Poi
+import com.cyclesafe.app.data.model.PoiType
 import com.cyclesafe.app.data.model.Rating
+import com.cyclesafe.app.ui.screens.poi_list.SortOrder
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -11,23 +14,66 @@ import kotlinx.coroutines.tasks.await
 
 class PoiRepository(private val firestore: FirebaseFirestore) {
 
-    fun getAllPois(): Flow<List<Poi>> = callbackFlow {
-        val listenerRegistration = firestore.collection("pois")
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    close(error)
-                    return@addSnapshotListener
-                }
-                val pois = snapshot?.toObjects(Poi::class.java)
-                if (pois != null) {
-                    trySend(pois)
-                }
+    fun getFilteredPois(poiType: PoiType?, sortOrder: SortOrder): Flow<List<Poi>> = callbackFlow {
+        var query: Query = firestore.collection("pois")
+
+        if (poiType != null) {
+            query = query.whereEqualTo("type", poiType.name)
+        }
+
+        query = when (sortOrder) {
+            SortOrder.NEWEST_FIRST -> query.orderBy("createdAt", Query.Direction.DESCENDING)
+            SortOrder.OLDEST_FIRST -> query.orderBy("createdAt", Query.Direction.ASCENDING)
+        }
+
+        val listenerRegistration = query.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
             }
+            val pois = snapshot?.toObjects(Poi::class.java)
+            if (pois != null) {
+                trySend(pois)
+            }
+        }
+        awaitClose { listenerRegistration.remove() }
+    }
+
+    fun getMapPois(dangerousOnly: Boolean): Flow<List<Poi>> = callbackFlow {
+        var query: Query = firestore.collection("pois")
+
+        if (dangerousOnly) {
+            query = query.whereEqualTo("dangerous", true)
+        }
+
+        val listenerRegistration = query.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
+            }
+            val pois = snapshot?.toObjects(Poi::class.java)
+            if (pois != null) {
+                trySend(pois)
+            }
+        }
+        awaitClose { listenerRegistration.remove() }
+    }
+
+    fun getPoiById(poiId: String): Flow<Poi?> = callbackFlow {
+        val docRef = firestore.collection("pois").document(poiId)
+        val listenerRegistration = docRef.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
+            }
+            trySend(snapshot?.toObject(Poi::class.java))
+        }
         awaitClose { listenerRegistration.remove() }
     }
 
     fun getCommentsForPoi(poiId: String): Flow<List<Comment>> = callbackFlow {
         val listenerRegistration = firestore.collection("pois").document(poiId).collection("comments")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     close(error)
@@ -92,7 +138,8 @@ class PoiRepository(private val firestore: FirebaseFirestore) {
         longitude: Double,
         isDangerous: Boolean,
         imageUrl: String?,
-        authorId: String
+        authorId: String,
+        authorName: String
     ) {
         val poi = Poi(
             name = name,
@@ -103,6 +150,7 @@ class PoiRepository(private val firestore: FirebaseFirestore) {
             dangerous = isDangerous,
             imageUrl = imageUrl,
             authorId = authorId,
+            authorName = authorName,
             createdAt = com.google.firebase.Timestamp.now()
         )
         firestore.collection("pois").add(poi).await()

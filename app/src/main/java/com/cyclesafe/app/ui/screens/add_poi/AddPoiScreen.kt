@@ -149,7 +149,7 @@ fun AddPoiScreen(navController: NavController, locationViewModel: LocationViewMo
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 )
                 ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    PoiType.values().forEach { poiType ->
+                    PoiType.entries.forEach { poiType ->
                         DropdownMenuItem(
                             text = { Text(poiType.name) },
                             onClick = {

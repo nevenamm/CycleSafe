@@ -13,6 +13,7 @@ data class Poi(
     val dangerous: Boolean = false,
     val imageUrl: String? = null,
     val authorId: String = "",
+    val authorName: String = "",
     val createdAt: com.google.firebase.Timestamp? = null,
     val averageRating: Float = 0f,
     val ratingCount: Int = 0

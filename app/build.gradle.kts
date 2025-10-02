@@ -69,6 +69,9 @@ dependencies {
     implementation(libs.firebase.storage)
     implementation(libs.firebase.messaging)
 
+    // DataStore
+    implementation(libs.androidx.datastore.preferences)
+
     // Cloudinary
     implementation(libs.cloudinary.android) {
         exclude(group = "com.facebook.fresco")

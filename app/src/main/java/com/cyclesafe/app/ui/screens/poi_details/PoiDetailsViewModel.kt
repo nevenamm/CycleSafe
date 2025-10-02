@@ -9,17 +9,16 @@ import com.cyclesafe.app.data.repository.PoiRepository
 import com.cyclesafe.app.data.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 
 sealed class PoiDetailsState {
     object Loading : PoiDetailsState()
-    data class Success(val poi: Poi, val comments: List<Comment>, val userRating: Float) : PoiDetailsState()
+    data class Success(val poi: Poi, val authorName: String, val comments: List<Comment>, val userRating: Float) : PoiDetailsState()
     data class Error(val message: String) : PoiDetailsState()
 }
 
-class PoiDetailsViewModel(application: Application) : AndroidViewModel(application) {
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+class PoiDetailsViewModel(application: Application, private val poiId: String) : AndroidViewModel(application) {
 
     private val poiRepository: PoiRepository = Injection.providePoiRepository(application.applicationContext)
     private val userRepository: UserRepository = Injection.provideUserRepository(application.applicationContext)
@@ -34,26 +33,36 @@ class PoiDetailsViewModel(application: Application) : AndroidViewModel(applicati
     private val _userComment = MutableStateFlow("")
     val userComment = _userComment.asStateFlow()
 
-    fun getPoiDetails(poiId: String) {
+    private val _isSubmitting = MutableStateFlow(false)
+    val isSubmitting = _isSubmitting.asStateFlow()
+
+    init {
+        getPoiDetails()
+    }
+
+    private fun getPoiDetails() {
         viewModelScope.launch {
             _poiDetailsState.value = PoiDetailsState.Loading
             try {
-                val poiFlow = poiRepository.getAllPois().mapNotNull { pois ->
-                    pois.find { it.firestoreId == poiId }
-                }
+                poiRepository.getPoiById(poiId).flatMapLatest { poi ->
+                    if (poi == null) {
+                        flowOf(PoiDetailsState.Error("POI not found"))
+                    } else {
+                        val authorFlow = userRepository.getUser(poi.authorId)
+                        val commentsFlow = poiRepository.getCommentsForPoi(poiId)
+                        val userId = auth.currentUser?.uid
+                        val userRatingFlow = if (userId != null) {
+                            poiRepository.getRatingForUser(poiId, userId).map { it?.rating ?: 0f }
+                        } else {
+                            flowOf(0f)
+                        }
 
-                val commentsFlow = poiRepository.getCommentsForPoi(poiId)
-
-                val userId = auth.currentUser?.uid
-                val userRatingFlow = if (userId != null) {
-                    poiRepository.getRatingForUser(poiId, userId).map { it?.rating ?: 0f }
-                } else {
-                    flowOf(0f)
-                }
-
-                combine(poiFlow, commentsFlow, userRatingFlow) { poi, comments, rating ->
-                    _userRating.value = rating
-                    PoiDetailsState.Success(poi, comments, rating)
+                        combine(authorFlow, commentsFlow, userRatingFlow) { author, comments, rating ->
+                            _userRating.value = rating
+                            val authorName = "${author.firstName} ${author.lastName}"
+                            PoiDetailsState.Success(poi, authorName, comments, rating)
+                        }
+                    }
                 }.collect { state ->
                     _poiDetailsState.value = state
                 }
@@ -71,32 +80,34 @@ class PoiDetailsViewModel(application: Application) : AndroidViewModel(applicati
         _userComment.value = comment
     }
 
-    fun addRatingAndComment(poiId: String) {
+    fun addRatingAndComment() {
         viewModelScope.launch {
             val userId = auth.currentUser?.uid ?: return@launch
-            try {
-                val ratingJob = async { poiRepository.addRating(poiId, userId, _userRating.value) }
-                val awardPointsForRatingJob = async { awardPoints(5) }
-                awaitAll(ratingJob, awardPointsForRatingJob)
+            val poiState = _poiDetailsState.value
+            if (poiState !is PoiDetailsState.Success) return@launch
 
+            _isSubmitting.value = true
+            try {
+                // Award points for rating if it's a new rating
+                val currentRating = poiState.userRating
+                if (currentRating == 0f && _userRating.value > 0f) {
+                    poiRepository.addRating(poiId, userId, _userRating.value)
+                    userRepository.awardPoints(userId, 5) // 5 points for rating
+                }
+
+                // Award points for comment
                 if (_userComment.value.isNotBlank()) {
-                    val user = userRepository.getUser(userId).firstOrNull()
-                    val userName = user?.let { "${it.firstName} ${it.lastName}" } ?: "Anonymous"
-                    val commentJob = async { poiRepository.addComment(poiId, userId, userName, _userComment.value) }
-                    val awardPointsForCommentJob = async { awardPoints(2) }
-                    awaitAll(commentJob, awardPointsForCommentJob)
+                    val user = userRepository.getUser(userId).first()
+                    val userName = "${user.firstName} ${user.lastName}"
+                    poiRepository.addComment(poiId, userId, userName, _userComment.value)
+                    userRepository.awardPoints(userId, 2) // 2 points for commenting
                     _userComment.value = ""
                 }
             } catch (e: Exception) {
-                // Handle error
+                // Handle error, e.g., show a snackbar
+            } finally {
+                _isSubmitting.value = false
             }
-        }
-    }
-
-    private fun awardPoints(points: Int) {
-        viewModelScope.launch {
-            val userId = auth.currentUser?.uid ?: return@launch
-            userRepository.awardPoints(userId, points)
         }
     }
 }

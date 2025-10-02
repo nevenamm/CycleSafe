@@ -18,8 +18,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 import androidx.core.content.FileProvider
 import android.content.Context
-
 import com.cyclesafe.app.data.model.PoiType
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 sealed class AddPoiState {
@@ -116,8 +116,11 @@ class AddPoiViewModel(application: Application) : AndroidViewModel(application) 
                     return@launch
                 }
 
+                val user = userRepository.getUser(userId).first()
+                val authorName = "${user.firstName} ${user.lastName}"
+
                 val imageUrl = _imageUri.value?.let { CloudinaryUploader.uploadImage(it) }
-                savePoi(_name.value, _description.value, _selectedPoiType.value, latitude, longitude, _isDangerous.value, imageUrl, userId)
+                savePoi(_name.value, _description.value, _selectedPoiType.value, latitude, longitude, _isDangerous.value, imageUrl, userId, authorName)
 
             } catch (e: Exception) {
                 _addPoiState.value = AddPoiState.Error(e.message ?: "An unknown error occurred")
@@ -133,11 +136,12 @@ class AddPoiViewModel(application: Application) : AndroidViewModel(application) 
         longitude: Double,
         isDangerous: Boolean,
         imageUrl: String?,
-        userId: String
+        userId: String,
+        authorName: String
     ) {
         viewModelScope.launch {
             try {
-                val addPoiJob = async { poiRepository.addPoi(name, description, poiType.name, latitude, longitude, isDangerous, imageUrl, userId) }
+                val addPoiJob = async { poiRepository.addPoi(name, description, poiType.name, latitude, longitude, isDangerous, imageUrl, userId, authorName) }
                 val awardPointsJob = async { userRepository.awardPoints(userId, 10) }
                 awaitAll(addPoiJob, awardPointsJob)
                 _addPoiState.value = AddPoiState.Success
