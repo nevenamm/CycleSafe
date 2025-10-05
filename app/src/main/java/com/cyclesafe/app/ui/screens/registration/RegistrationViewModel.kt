@@ -46,12 +46,6 @@ class RegistrationViewModel(application: Application) : AndroidViewModel(applica
     private val _imageUri = MutableStateFlow<Uri?>(null)
     val imageUri = _imageUri.asStateFlow()
 
-    private val _tempUri = MutableStateFlow<Uri?>(null)
-    val tempUri = _tempUri.asStateFlow()
-
-    private val _showDialog = MutableStateFlow(false)
-    val showDialog = _showDialog.asStateFlow()
-
     private val _usernameError = MutableStateFlow<String?>(null)
     val usernameError = _usernameError.asStateFlow()
 
@@ -97,14 +91,6 @@ class RegistrationViewModel(application: Application) : AndroidViewModel(applica
 
     fun onImageUriChange(imageUri: Uri?) {
         _imageUri.value = imageUri
-    }
-
-    fun onTempUriChange(tempUri: Uri?) {
-        _tempUri.value = tempUri
-    }
-
-    fun onShowDialogChange(show: Boolean) {
-        _showDialog.value = show
     }
 
     fun onSnackbarMessageShown() {
@@ -164,7 +150,7 @@ class RegistrationViewModel(application: Application) : AndroidViewModel(applica
 
     fun registerUser() {
         if (!validateAll()) {
-            _snackbarMessage.value = "Please fix the errors above"
+            _snackbarMessage.value = "Please fill the fields correctly"
             return
         }
         viewModelScope.launch {

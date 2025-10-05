@@ -1,10 +1,5 @@
 package com.cyclesafe.app.ui.screens.add_poi
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -15,22 +10,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
-import com.cyclesafe.app.R
 import com.cyclesafe.app.location.LocationViewModel
-import com.cyclesafe.app.ui.navigation.Screen
-import com.cyclesafe.app.ui.theme.CycleSafeYellow
-import kotlinx.coroutines.launch
 import com.cyclesafe.app.data.model.PoiType
-import java.io.IOException
+import com.cyclesafe.app.utils.rememberImagePicker
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,55 +30,32 @@ fun AddPoiScreen(navController: NavController, locationViewModel: LocationViewMo
     val selectedPoiType by addPoiViewModel.selectedPoiType.collectAsState()
     val isDangerous by addPoiViewModel.isDangerous.collectAsState()
     val imageUri by addPoiViewModel.imageUri.collectAsState()
-    val tempImageUri by addPoiViewModel.tempImageUri.collectAsState()
+    val nameError by addPoiViewModel.nameError.collectAsState()
+    val descriptionError by addPoiViewModel.descriptionError.collectAsState()
 
     var expanded by remember { mutableStateOf(false) }
-    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
+    LaunchedEffect(Unit) {
+        locationViewModel.updateCurrentLocation(navController.context)
+    }
+
     LaunchedEffect(addPoiState) {
-        when (addPoiState) {
+        when (val state = addPoiState) {
             is AddPoiState.Success -> {
+                snackbarHostState.showSnackbar("POI added successfully!")
                 navController.popBackStack()
             }
             is AddPoiState.Error -> {
-                snackbarHostState.showSnackbar((addPoiState as AddPoiState.Error).message)
+                snackbarHostState.showSnackbar(state.message)
             }
             else -> {}
         }
     }
 
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        addPoiViewModel.onImageUriChange(uri)
-    }
-
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success) {
-            addPoiViewModel.onImageUriChange(tempImageUri)
-        } else {
-            addPoiViewModel.onImageUriChange(null)
-        }
-    }
-
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
-            val uri = addPoiViewModel.createImageUri(context)
-            if (uri != null) {
-                addPoiViewModel.onTempImageUriChange(uri)
-                cameraLauncher.launch(uri)
-            }
-        } else {
-            scope.launch {
-                snackbarHostState.showSnackbar("Camera permission is required to take photos.")
-            }
-        }
+    val showImagePicker = rememberImagePicker {
+        addPoiViewModel.onImageUriChange(it)
     }
 
     Scaffold(
@@ -119,39 +84,52 @@ fun AddPoiScreen(navController: NavController, locationViewModel: LocationViewMo
             imageUri?.let {
                 Image(
                     painter = rememberAsyncImagePainter(it),
-                    contentDescription = null,
+                    contentDescription = "Selected image preview",
                     modifier = Modifier.size(128.dp),
                     contentScale = ContentScale.Crop
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
+            Button(onClick = { showImagePicker() }) {
+                Text("Add Photo (Optional)")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             OutlinedTextField(
                 value = name,
                 onValueChange = { addPoiViewModel.onNameChange(it) },
                 label = { Text("Name") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                isError = nameError != null,
+                singleLine = true,
+                supportingText = { nameError?.let { Text(it) } }
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = description,
                 onValueChange = { addPoiViewModel.onDescriptionChange(it) },
                 label = { Text("Description") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                isError = descriptionError != null,
+                singleLine = true,
+                supportingText = { descriptionError?.let { Text(it) } }
             )
             Spacer(modifier = Modifier.height(16.dp))
             ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }, modifier = Modifier.fillMaxWidth()) {
                 TextField(
-                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
-                    value = selectedPoiType.name,
+                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true).fillMaxWidth(),
+                    value = selectedPoiType.displayName,
                     onValueChange = {},
                     readOnly = true,
+                    label = { Text("Type") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 )
                 ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     PoiType.entries.forEach { poiType ->
                         DropdownMenuItem(
-                            text = { Text(poiType.name) },
+                            text = { Text(poiType.displayName) },
                             onClick = {
                                 addPoiViewModel.onPoiTypeSelected(poiType)
                                 expanded = false
@@ -163,34 +141,10 @@ fun AddPoiScreen(navController: NavController, locationViewModel: LocationViewMo
             Spacer(modifier = Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Checkbox(checked = isDangerous, onCheckedChange = { addPoiViewModel.onIsDangerousChange(it) })
-                Text("Dangerous")
+                Text("Mark as Dangerous")
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                Button(onClick = { galleryLauncher.launch("image/*") }) {
-                    Text("From Gallery")
-                }
-                Button(onClick = {
-                    when (PackageManager.PERMISSION_GRANTED) {
-                        ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.CAMERA
-                        ) -> {
-                            val uri = addPoiViewModel.createImageUri(context)
-                            if (uri != null) {
-                                addPoiViewModel.onTempImageUriChange(uri)
-                                cameraLauncher.launch(uri)
-                            }
-                        }
-                        else -> {
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                    }
-                }) {
-                    Text("Take Photo")
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
+
             Button(
                 onClick = {
                     location?.let {
@@ -201,16 +155,14 @@ fun AddPoiScreen(navController: NavController, locationViewModel: LocationViewMo
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = addPoiState !is AddPoiState.Loading
             ) {
-                Text("Add POI")
-            }
-
-            when (addPoiState) {
-                is AddPoiState.Loading -> {
-                    CircularProgressIndicator()
+                if (addPoiState is AddPoiState.Loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                } else {
+                    Text("Add POI")
                 }
-                else -> {}
             }
         }
     }

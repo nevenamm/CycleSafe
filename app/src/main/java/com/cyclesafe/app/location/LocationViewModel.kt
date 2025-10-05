@@ -2,28 +2,19 @@ package com.cyclesafe.app.location
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.ActivityManager
 import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cyclesafe.app.services.LocationService
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.LatLng
 import com.cyclesafe.app.data.preferences.UserPreferencesRepository
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class LocationViewModel(application: Application) : AndroidViewModel(application) {
@@ -42,6 +33,7 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
     private val _requestBackgroundLocationPermission = MutableSharedFlow<Unit>()
     val requestBackgroundLocationPermission = _requestBackgroundLocationPermission.asSharedFlow()
 
+    // one-time location update, called when the map screen is opened
     @SuppressLint("MissingPermission")
     fun updateCurrentLocation(context: Context) {
         if (hasLocationPermission(context)) {
@@ -52,6 +44,7 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // notification bell
     fun onToggleBackgroundTracking(context: Context) {
         viewModelScope.launch {
             val wasTracking = isTracking.first()
@@ -68,6 +61,7 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // called after the user responds to the background location permission request
     fun onPermissionResult(isGranted: Boolean, context: Context) {
         if (isGranted) {
             startService(context)

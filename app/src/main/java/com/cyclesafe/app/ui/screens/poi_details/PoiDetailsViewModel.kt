@@ -13,8 +13,15 @@ import kotlinx.coroutines.launch
 
 sealed class PoiDetailsState {
     object Loading : PoiDetailsState()
-    data class Success(val poi: Poi, val authorName: String, val comments: List<Comment>, val userRating: Float) : PoiDetailsState()
+    data class Success(val poi: Poi, val authorName: String, val comments: List<Comment>) : PoiDetailsState()
     data class Error(val message: String) : PoiDetailsState()
+}
+
+sealed class DeleteState {
+    object Idle : DeleteState()
+    object Loading : DeleteState()
+    object Success : DeleteState()
+    data class Error(val message: String) : DeleteState()
 }
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -27,14 +34,29 @@ class PoiDetailsViewModel(application: Application, private val poiId: String) :
     private val _poiDetailsState = MutableStateFlow<PoiDetailsState>(PoiDetailsState.Loading)
     val poiDetailsState = _poiDetailsState.asStateFlow()
 
-    private val _userRating = MutableStateFlow(0f)
-    val userRating = _userRating.asStateFlow()
-
     private val _userComment = MutableStateFlow("")
     val userComment = _userComment.asStateFlow()
 
+    private val _userRating = MutableStateFlow(0f)
+    val userRating = _userRating.asStateFlow()
+
     private val _isSubmitting = MutableStateFlow(false)
     val isSubmitting = _isSubmitting.asStateFlow()
+
+    private val _deleteState = MutableStateFlow<DeleteState>(DeleteState.Idle)
+    val deleteState = _deleteState.asStateFlow()
+
+    val canDeletePoi: StateFlow<Boolean> = poiDetailsState.map { state ->
+        if (state is PoiDetailsState.Success) {
+            state.poi.authorId == auth.currentUser?.uid
+        } else {
+            false
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = false
+    )
 
     init {
         getPoiDetails()
@@ -50,17 +72,10 @@ class PoiDetailsViewModel(application: Application, private val poiId: String) :
                     } else {
                         val authorFlow = userRepository.getUser(poi.authorId)
                         val commentsFlow = poiRepository.getCommentsForPoi(poiId)
-                        val userId = auth.currentUser?.uid
-                        val userRatingFlow = if (userId != null) {
-                            poiRepository.getRatingForUser(poiId, userId).map { it?.rating ?: 0f }
-                        } else {
-                            flowOf(0f)
-                        }
 
-                        combine(authorFlow, commentsFlow, userRatingFlow) { author, comments, rating ->
-                            _userRating.value = rating
+                        combine(authorFlow, commentsFlow) { author, comments ->
                             val authorName = "${author.firstName} ${author.lastName}"
-                            PoiDetailsState.Success(poi, authorName, comments, rating)
+                            PoiDetailsState.Success(poi, authorName, comments)
                         }
                     }
                 }.collect { state ->
@@ -72,12 +87,12 @@ class PoiDetailsViewModel(application: Application, private val poiId: String) :
         }
     }
 
-    fun onUserRatingChange(rating: Float) {
-        _userRating.value = rating
-    }
-
     fun onUserCommentChange(comment: String) {
         _userComment.value = comment
+    }
+
+    fun onUserRatingChange(rating: Float) {
+        _userRating.value = rating
     }
 
     fun addRatingAndComment() {
@@ -86,27 +101,45 @@ class PoiDetailsViewModel(application: Application, private val poiId: String) :
             val poiState = _poiDetailsState.value
             if (poiState !is PoiDetailsState.Success) return@launch
 
+            val rating = _userRating.value
+
             _isSubmitting.value = true
             try {
-                // Award points for rating if it's a new rating
-                val currentRating = poiState.userRating
-                if (currentRating == 0f && _userRating.value > 0f) {
-                    poiRepository.addRating(poiId, userId, _userRating.value)
+                if (rating > 0f) {
+                    poiRepository.addRating(poiId, userId, rating)
                     userRepository.awardPoints(userId, 5) // 5 points for rating
                 }
 
-                // Award points for comment
                 if (_userComment.value.isNotBlank()) {
                     val user = userRepository.getUser(userId).first()
                     val userName = "${user.firstName} ${user.lastName}"
                     poiRepository.addComment(poiId, userId, userName, _userComment.value)
                     userRepository.awardPoints(userId, 2) // 2 points for commenting
-                    _userComment.value = ""
                 }
+
+                // Clear inputs on success
+                _userComment.value = ""
+                _userRating.value = 0f
+
+                // Refresh POI details
+                getPoiDetails()
+
             } catch (e: Exception) {
-                // Handle error, e.g., show a snackbar
+                android.util.Log.e("PoiDetailsViewModel", "Error adding rating and comment", e)
             } finally {
                 _isSubmitting.value = false
+            }
+        }
+    }
+
+    fun deletePoi() {
+        viewModelScope.launch {
+            _deleteState.value = DeleteState.Loading
+            try {
+                poiRepository.deletePoi(poiId)
+                _deleteState.value = DeleteState.Success
+            } catch (e: Exception) {
+                _deleteState.value = DeleteState.Error(e.message ?: "Failed to delete POI")
             }
         }
     }

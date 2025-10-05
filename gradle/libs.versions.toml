@@ -1,6 +1,7 @@
 [versions]
 agp = "8.11.1"
 datastorePreferences = "1.1.7"
+geofireAndroidCommon = "3.2.0"
 kotlin = "2.2.0"
 coreKtx = "1.16.0"
 coreSplashscreen = "1.0.1"
@@ -17,12 +18,14 @@ firebase-bom = "34.3.0"
 cloudinary-android = "3.1.2"
 coil-compose = "2.7.0"
 material = "1.13.0"
-
+uiTextGoogleFonts = "1.9.2"
 
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastorePreferences" }
+androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
+geofire-android-common = { module = "com.firebase:geofire-android-common", version.ref = "geofireAndroidCommon" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
@@ -48,10 +51,9 @@ cloudinary-android = { group = "com.cloudinary", name = "cloudinary-android", ve
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil-compose" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
-
+androidx-ui-text-google-fonts = { group = "androidx.compose.ui", name = "ui-text-google-fonts", version.ref = "uiTextGoogleFonts" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-

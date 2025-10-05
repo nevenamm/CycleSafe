@@ -81,7 +81,7 @@ dependencies {
     implementation(libs.coil.compose)
 
     //Stars in comment
-    implementation("androidx.compose.material:material-icons-extended")
+    implementation(libs.androidx.material.icons.extended)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
@@ -94,6 +94,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.material)
     implementation(libs.androidx.navigation.compose.android)
+    implementation(libs.androidx.ui.text.google.fonts)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

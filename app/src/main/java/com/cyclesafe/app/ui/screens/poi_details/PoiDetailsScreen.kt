@@ -7,20 +7,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
+import com.cyclesafe.app.data.model.Comment
+import com.cyclesafe.app.data.model.PoiType
 import com.cyclesafe.app.ui.components.RatingBar
-import com.cyclesafe.app.ui.theme.CycleSafeYellow
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
@@ -36,6 +37,18 @@ fun PoiDetailsScreen(
     viewModel: PoiDetailsViewModel = viewModel(factory = PoiDetailsViewModelFactory(LocalContext.current.applicationContext as Application, poiId))
 ) {
     val poiDetailsState by viewModel.poiDetailsState.collectAsState()
+    val canDeletePoi by viewModel.canDeletePoi.collectAsState()
+    val deleteState by viewModel.deleteState.collectAsState()
+
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(deleteState) {
+        if (deleteState is DeleteState.Success) {
+            navController.popBackStack()
+        } else if (deleteState is DeleteState.Error) {
+            // Optionally show a snackbar with the error message
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -44,6 +57,13 @@ fun PoiDetailsScreen(
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (canDeletePoi) {
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete POI")
+                        }
                     }
                 }
             )
@@ -64,6 +84,33 @@ fun PoiDetailsScreen(
                 }
             }
         }
+
+        if (showDeleteDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteDialog = false },
+                title = { Text("Delete POI") },
+                text = { Text("Are you sure you want to delete this Point of Interest?") },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.deletePoi() },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        enabled = deleteState !is DeleteState.Loading
+                    ) {
+                        if (deleteState is DeleteState.Loading) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onError)
+                        } else {
+                            Text("Delete", color = MaterialTheme.colorScheme.onError)
+                        }
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteDialog = false }) {
+                        Text("Cancel")
+                    }
+                },
+                properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+            )
+        }
     }
 }
 
@@ -73,8 +120,8 @@ private fun PoiDetailsSuccessContent(
     viewModel: PoiDetailsViewModel,
     paddingValues: PaddingValues
 ) {
-    val userRating by viewModel.userRating.collectAsState()
     val userComment by viewModel.userComment.collectAsState()
+    val userRating by viewModel.userRating.collectAsState()
 
     LazyColumn(
         modifier = Modifier
@@ -88,7 +135,7 @@ private fun PoiDetailsSuccessContent(
         }
 
         item {
-            UserInputCard(userRating, userComment, viewModel)
+            UserInputCard(userRating, userComment, onRatingChange = { viewModel.onUserRatingChange(it) }, viewModel)
         }
 
         if (state.comments.isNotEmpty()) {
@@ -107,7 +154,12 @@ private fun PoiDetailsSuccessContent(
 
 @Composable
 private fun PoiDetailsCard(state: PoiDetailsState.Success) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
+    ) {
         Column {
             if (state.poi.imageUrl != null) {
                 Image(
@@ -125,9 +177,9 @@ private fun PoiDetailsCard(state: PoiDetailsState.Success) {
                 Text(text = "Added by ${state.authorName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 HorizontalDivider()
                 Text(text = state.poi.description, style = MaterialTheme.typography.bodyLarge)
-                Text(text = "Type: ${state.poi.type}", style = MaterialTheme.typography.bodyMedium)
+                Text(text = "Type: ${PoiType.valueOf(state.poi.type).displayName}", style = MaterialTheme.typography.bodyMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    RatingBar(rating = state.poi.averageRating, onRatingChanged = {})
+                    RatingBar(rating = state.poi.averageRating, onRatingChanged = {}, isIndicator = true)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = "(${state.poi.ratingCount} ratings)", style = MaterialTheme.typography.bodyMedium)
                 }
@@ -149,14 +201,19 @@ private fun PoiDetailsCard(state: PoiDetailsState.Success) {
 }
 
 @Composable
-private fun UserInputCard(userRating: Float, userComment: String, viewModel: PoiDetailsViewModel) {
+private fun UserInputCard(userRating: Float, userComment: String, onRatingChange: (Float) -> Unit, viewModel: PoiDetailsViewModel) {
     val isSubmitting by viewModel.isSubmitting.collectAsState()
 
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = "Your Rating & Comment", style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(16.dp))
-            RatingBar(rating = userRating, onRatingChanged = { viewModel.onUserRatingChange(it) })
+            RatingBar(rating = userRating, onRatingChanged = onRatingChange)
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedTextField(
                 value = userComment,
@@ -170,10 +227,10 @@ private fun UserInputCard(userRating: Float, userComment: String, viewModel: Poi
                 onClick = { viewModel.addRatingAndComment() },
                 modifier = Modifier.align(Alignment.End),
                 enabled = !isSubmitting,
-                colors = ButtonDefaults.buttonColors(containerColor = CycleSafeYellow, contentColor = MaterialTheme.colorScheme.onSecondary)
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
             ) {
                 if (isSubmitting) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onSecondary)
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
                     Text("Submit")
                 }
@@ -183,8 +240,13 @@ private fun UserInputCard(userRating: Float, userComment: String, viewModel: Poi
 }
 
 @Composable
-private fun CommentCard(comment: com.cyclesafe.app.data.model.Comment) {
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+private fun CommentCard(comment: Comment) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(text = comment.userName, style = MaterialTheme.typography.titleMedium)
             Text(text = comment.comment, style = MaterialTheme.typography.bodyMedium)

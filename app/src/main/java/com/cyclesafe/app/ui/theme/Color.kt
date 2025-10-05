@@ -2,22 +2,75 @@ package com.cyclesafe.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// 🌍 CycleSafe primarne boje
-val CycleSafeTurquoise = Color(0xFF00BFA5)   // glavna primarna (sigurnost, biciklizam)
-val CycleSafeYellow = Color(0xFFFFB300)      // akcenat (upozorenja, nagrade)
-val CycleSafeRed = Color(0xFFD32F2F)         // greške, opasne tačke
+val primaryLight = Color(0xFFFFB347) // svetla narandžasta (sunset orange)
+val onPrimaryLight = Color(0xFF402100)
+val primaryContainerLight = Color(0xFFFFE0B3) // pastelno narandžasto-krem
+val onPrimaryContainerLight = Color(0xFF4A2800)
+val secondaryLight = Color(0xFF7B6246) // topla braon
+val onSecondaryLight = Color(0xFFFFFFFF)
+val secondaryContainerLight = Color(0xFFF5E0C8) // mekana bež
+val onSecondaryContainerLight = Color(0xFF4D3923)
+val tertiaryLight = Color(0xFF5E814D) // svetlija prirodna zelena
+val onTertiaryLight = Color(0xFFFFFFFF)
+val tertiaryContainerLight = Color(0xFFDDF3CC) // pastelno-zelena
+val onTertiaryContainerLight = Color(0xFF2D4A24)
+val errorLight = Color(0xFFB3261E)
+val onErrorLight = Color(0xFFFFFFFF)
+val errorContainerLight = Color(0xFFF9DEDC)
+val onErrorContainerLight = Color(0xFF410E0B)
+val backgroundLight = Color(0xFFFFFBF7)
+val onBackgroundLight = Color(0xFF201B13)
+val surfaceLight = Color(0xFFFFFBF7)
+val onSurfaceLight = Color(0xFF201B13)
+val surfaceVariantLight = Color(0xFFEADFD2)
+val onSurfaceVariantLight = Color(0xFF524538)
+val outlineLight = Color(0xFF857567)
+val outlineVariantLight = Color(0xFFD8CCBF)
+val scrimLight = Color(0xFF000000)
+val inverseSurfaceLight = Color(0xFF38312A)
+val inverseOnSurfaceLight = Color(0xFFF8EFE6)
+val inversePrimaryLight = Color(0xFFFFCA6F)
+val surfaceDimLight = Color(0xFFE8DED3)
+val surfaceBrightLight = Color(0xFFFFFBF7)
+val surfaceContainerLowestLight = Color(0xFFFFFFFF)
+val surfaceContainerLowLight = Color(0xFFFEF4EA)
+val surfaceContainerLight = Color(0xFFF9EEE3)
+val surfaceContainerHighLight = Color(0xFFF3E9DE)
+val surfaceContainerHighestLight = Color(0xFFEDE3D8)
 
-// 🎨 Pozadinske i površinske
-val LightBackground = Color(0xFFF5F5F5)
-val DarkBackground = Color(0xFF121212)
 
-val LightSurface = Color.White
-val DarkSurface = Color(0xFF1E1E1E)
-
-// 🖋️ Tekstualne boje
-val TextPrimaryLight = Color(0xFF212121)
-val TextPrimaryDark = Color(0xFFE0E0E0)
-
-// ✅ Ostale pomoćne
-val CycleSafeGreen = Color(0xFF4CAF50)       // za pozitivne akcije (npr. potvrda)
-val CycleSafeOrange = Color(0xFFFF9800)      // alternativni akcenat
+val primaryDark = Color(0xFFFFCA6F) // zagasita narandžasta za dark mode
+val onPrimaryDark = Color(0xFF422200)
+val primaryContainerDark = Color(0xFF5E3500)
+val onPrimaryContainerDark = Color(0xFFFFE0B3)
+val secondaryDark = Color(0xFFE1C6A8) // svetla bež u dark modu
+val onSecondaryDark = Color(0xFF3C2C17)
+val secondaryContainerDark = Color(0xFF54412A)
+val onSecondaryContainerDark = Color(0xFFF5E0C8)
+val tertiaryDark = Color(0xFFB9D8AC) // pastelna zelena za dark
+val onTertiaryDark = Color(0xFF1E3618)
+val tertiaryContainerDark = Color(0xFF355032)
+val onTertiaryContainerDark = Color(0xFFDDF3CC)
+val errorDark = Color(0xFFF2B8B5)
+val onErrorDark = Color(0xFF601410)
+val errorContainerDark = Color(0xFF8C1D18)
+val onErrorContainerDark = Color(0xFFF9DEDC)
+val backgroundDark = Color(0xFF1C1710)
+val onBackgroundDark = Color(0xFFEDE3D8)
+val surfaceDark = Color(0xFF1C1710)
+val onSurfaceDark = Color(0xFFEDE3D8)
+val surfaceVariantDark = Color(0xFF524538)
+val onSurfaceVariantDark = Color(0xFFD8CCBF)
+val outlineDark = Color(0xFF9E8F80)
+val outlineVariantDark = Color(0xFF524538)
+val scrimDark = Color(0xFF000000)
+val inverseSurfaceDark = Color(0xFFEDE3D8)
+val inverseOnSurfaceDark = Color(0xFF38312A)
+val inversePrimaryDark = Color(0xFFFFB347)
+val surfaceDimDark = Color(0xFF1C1710)
+val surfaceBrightDark = Color(0xFF413A31)
+val surfaceContainerLowestDark = Color(0xFF17120B)
+val surfaceContainerLowDark = Color(0xFF241E16)
+val surfaceContainerDark = Color(0xFF29231C)
+val surfaceContainerHighDark = Color(0xFF342E26)
+val surfaceContainerHighestDark = Color(0xFF3E382F)

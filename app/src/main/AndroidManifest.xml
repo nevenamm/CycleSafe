@@ -18,8 +18,8 @@
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/bicycle"
-        android:roundIcon="@mipmap/bicycle"
+        android:icon="@mipmap/bicycle_icon"
+        android:roundIcon="@mipmap/bicycle_icon"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.CycleSafe">

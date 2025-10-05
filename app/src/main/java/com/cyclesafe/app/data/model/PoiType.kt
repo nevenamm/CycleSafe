@@ -1,8 +1,8 @@
 package com.cyclesafe.app.data.model
 
-enum class PoiType {
-    PATH,
-    USEFUL,
-    INFORMATIVE,
-    DANGEROUS_INTERSECTION
+enum class PoiType(val displayName: String) {
+    PATH("Path"),
+    USEFUL("Useful"),
+    INFORMATIVE("Informative"),
+    DANGEROUS_INTERSECTION("Dangerous Intersection")
 }

@@ -1,37 +1,49 @@
 package com.cyclesafe.app.ui.screens.registration
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.cyclesafe.app.R
-import com.cyclesafe.app.ui.theme.CycleSafeYellow
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.*
+import com.cyclesafe.app.utils.rememberImagePicker
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,8 +54,6 @@ fun RegistrationScreen(navController: NavController, onLoginSuccess: () -> Unit,
     val lastName by viewModel.lastName.collectAsState()
     val phone by viewModel.phone.collectAsState()
     val imageUri by viewModel.imageUri.collectAsState()
-    val tempUri by viewModel.tempUri.collectAsState()
-    val showDialog by viewModel.showDialog.collectAsState()
     val registrationState by viewModel.registrationState.collectAsState()
 
     val usernameError by viewModel.usernameError.collectAsState()
@@ -53,7 +63,6 @@ fun RegistrationScreen(navController: NavController, onLoginSuccess: () -> Unit,
     val phoneError by viewModel.phoneError.collectAsState()
     val snackbarMessage by viewModel.snackbarMessage.collectAsState()
 
-    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(snackbarMessage) {
@@ -63,78 +72,9 @@ fun RegistrationScreen(navController: NavController, onLoginSuccess: () -> Unit,
         }
     }
 
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        viewModel.onImageUriChange(uri)
+    val showImagePicker = rememberImagePicker { 
+        viewModel.onImageUriChange(it)
     }
-
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success) {
-            viewModel.onImageUriChange(tempUri)
-        }
-    }
-
-    fun createImageUri(): Uri {
-        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val imageFile = File.createTempFile("JPEG_${timeStamp}_", ".jpg", context.externalCacheDir)
-        return FileProvider.getUriForFile(context, "${context.packageName}.provider", imageFile)
-    }
-
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
-            val uri = createImageUri()
-            viewModel.onTempUriChange(uri)
-            cameraLauncher.launch(uri)
-        } else {
-            // Permission denied
-        }
-    }
-
-    if (showDialog) {
-        AlertDialog(
-            onDismissRequest = { viewModel.onShowDialogChange(false) },
-            title = { Text("Choose an option") },
-            text = { Text("Select a profile photo from the gallery or take a new one with the camera.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.onShowDialogChange(false)
-                        when (PackageManager.PERMISSION_GRANTED) {
-                            ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.CAMERA
-                            ) -> {
-                                val uri = createImageUri()
-                                viewModel.onTempUriChange(uri)
-                                cameraLauncher.launch(uri)
-                            }
-                            else -> {
-                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                            }
-                        }
-                    }
-                ) {
-                    Text("Camera")
-                }
-            },
-            dismissButton = {
-                Button(
-                    onClick = {
-                        viewModel.onShowDialogChange(false)
-                        galleryLauncher.launch("image/*")
-                    }
-                ) {
-                    Text("Gallery")
-                }
-            }
-        )
-    }
-
 
     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { paddingValues ->
         Column(
@@ -147,6 +87,7 @@ fun RegistrationScreen(navController: NavController, onLoginSuccess: () -> Unit,
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Spacer(modifier = Modifier.height(32.dp))
             Text(
                 text = "Create an Account",
                 style = MaterialTheme.typography.headlineMedium,
@@ -159,7 +100,8 @@ fun RegistrationScreen(navController: NavController, onLoginSuccess: () -> Unit,
                     .size(128.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surface)
-                    .clickable { viewModel.onShowDialogChange(true) },
+                    .border(1.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                    .clickable { showImagePicker() },
                 contentAlignment = Alignment.Center
             ) {
                 if (imageUri != null) {
@@ -178,8 +120,8 @@ fun RegistrationScreen(navController: NavController, onLoginSuccess: () -> Unit,
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            TextButton(onClick = { viewModel.onShowDialogChange(true) }) {
-                Text("Select Profile Photo", color = CycleSafeYellow)
+            TextButton(onClick = { showImagePicker() }) {
+                Text("Select Profile Photo", color = MaterialTheme.colorScheme.primary)
             }
 
 
@@ -194,7 +136,7 @@ fun RegistrationScreen(navController: NavController, onLoginSuccess: () -> Unit,
                 isError = firstNameError != null,
                 supportingText = { firstNameError?.let { Text(it) } }
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             OutlinedTextField(
                 value = lastName,
                 onValueChange = { viewModel.onLastNameChange(it) },
@@ -204,7 +146,7 @@ fun RegistrationScreen(navController: NavController, onLoginSuccess: () -> Unit,
                 isError = lastNameError != null,
                 supportingText = { lastNameError?.let { Text(it) } }
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             OutlinedTextField(
                 value = username,
                 onValueChange = { viewModel.onUsernameChange(it) },
@@ -214,7 +156,7 @@ fun RegistrationScreen(navController: NavController, onLoginSuccess: () -> Unit,
                 isError = usernameError != null,
                 supportingText = { usernameError?.let { Text(it) } }
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             OutlinedTextField(
                 value = password,
                 onValueChange = { viewModel.onPasswordChange(it) },
@@ -225,7 +167,7 @@ fun RegistrationScreen(navController: NavController, onLoginSuccess: () -> Unit,
                 isError = passwordError != null,
                 supportingText = { passwordError?.let { Text(it) } }
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             OutlinedTextField(
                 value = phone,
                 onValueChange = { viewModel.onPhoneChange(it) },
@@ -235,17 +177,17 @@ fun RegistrationScreen(navController: NavController, onLoginSuccess: () -> Unit,
                 isError = phoneError != null,
                 supportingText = { phoneError?.let { Text(it) } }
             )
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = { viewModel.registerUser() },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = CycleSafeYellow),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 enabled = registrationState !is RegistrationState.Loading
             ) {
                 if (registrationState is RegistrationState.Loading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onSecondary)
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
-                    Text("Register", color = MaterialTheme.colorScheme.onSecondary)
+                    Text("Register", color = MaterialTheme.colorScheme.onPrimary)
                 }
             }
 

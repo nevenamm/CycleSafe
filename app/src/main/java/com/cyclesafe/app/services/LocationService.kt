@@ -31,15 +31,17 @@ class LocationService : Service() {
         super.onCreate()
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         createNotificationChannel()
-        fetchDangerousPois()
+        fetchDangerousPois() // fetch only dangerous POIs, updates when new POI is added
     }
 
+    // called when the LocationViewModel calls startForegroundService()
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(1, createNotification())
         startLocationUpdates()
         return START_STICKY
     }
 
+    // called when the LocationViewModel calls stopService()
     override fun onDestroy() {
         super.onDestroy()
         stopLocationUpdates()
@@ -94,7 +96,7 @@ class LocationService : Service() {
         return NotificationCompat.Builder(this, "location_channel")
             .setContentTitle("CycleSafe")
             .setContentText("Tracking your location")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.mipmap.bicycle_icon)
             .build()
     }
 
@@ -102,7 +104,6 @@ class LocationService : Service() {
         db.collection("pois").whereEqualTo("dangerous", true)
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
-                    // Handle error
                     return@addSnapshotListener
                 }
 
@@ -133,14 +134,14 @@ class LocationService : Service() {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel("dangerous_poi_channel", "Dangerous POIs", NotificationManager.IMPORTANCE_DEFAULT)
+            val channel = NotificationChannel("dangerous_poi_channel", "Dangerous POIs", NotificationManager.IMPORTANCE_HIGH)
             notificationManager.createNotificationChannel(channel)
         }
 
         val notification = NotificationCompat.Builder(context, "dangerous_poi_channel")
             .setContentTitle("Dangerous POI nearby")
             .setContentText("You are near a dangerous POI: ${poi.name}")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.mipmap.bicycle_icon)
             .build()
 
         notificationManager.notify(poi.hashCode(), notification)

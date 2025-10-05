@@ -37,9 +37,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         initialValue = false
     )
 
-    private val _triggerMapAdjustment = MutableSharedFlow<Unit>()
-    val triggerMapAdjustment = _triggerMapAdjustment.asSharedFlow()
-
     private var _currentLocation = MutableStateFlow<LatLng?>(null)
 
     init {
@@ -88,9 +85,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun onSearchClicked() {
+    fun onIsDangerousFilterChanged(isDangerous: Boolean) {
         viewModelScope.launch {
-            _triggerMapAdjustment.emit(Unit)
+            prefsRepository.updateIsDangerousFilter(isDangerous)
         }
     }
 
@@ -103,12 +100,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             _searchQuery.value = ""
             prefsRepository.updateIsDangerousFilter(false)
             prefsRepository.updateSearchRadius(2500f)
-        }
-    }
-
-    fun onIsDangerousFilterChanged(isDangerous: Boolean) {
-        viewModelScope.launch {
-            prefsRepository.updateIsDangerousFilter(isDangerous)
         }
     }
 

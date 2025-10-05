@@ -11,18 +11,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.NotificationsOff
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -32,13 +25,16 @@ import androidx.navigation.NavController
 import com.cyclesafe.app.R
 import com.cyclesafe.app.location.LocationViewModel
 import com.cyclesafe.app.ui.navigation.Screen
-import com.cyclesafe.app.ui.theme.CycleSafeTurquoise
-import com.cyclesafe.app.ui.theme.CycleSafeYellow
 import com.cyclesafe.app.utils.LockScreenOrientation
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.*
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.rememberCameraPositionState
+import com.google.maps.android.compose.rememberUpdatedMarkerState
 import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -114,19 +110,22 @@ fun HomeScreen(navController: NavController, locationViewModel: LocationViewMode
                     Image(
                         painter = painterResource(id = R.mipmap.bicycle_icon),
                         contentDescription = "App Logo",
-                        colorFilter = ColorFilter.tint(CycleSafeYellow),
                         modifier = Modifier.size(40.dp).padding(start = 8.dp)
                     )
                 },
                 actions = {
                     IconButton(onClick = { navController.navigate(Screen.AddPoi.route) }) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = "Add POI")
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add POI",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
                     }
                     IconButton(onClick = { locationViewModel.onToggleBackgroundTracking(context) }) {
                         Icon(
                             imageVector = if (isTracking) Icons.Default.Notifications else Icons.Default.NotificationsOff,
                             contentDescription = "Toggle Tracking",
-                            tint = if (isTracking) CycleSafeTurquoise else Color.Gray
+                            tint = if (isTracking) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
                     }
                     IconButton(onClick = { showBottomSheet = true }) {
@@ -250,7 +249,7 @@ private fun FilterControls(homeViewModel: HomeViewModel) {
             Switch(
                 checked = isDangerousFilter,
                 onCheckedChange = { homeViewModel.onIsDangerousFilterChanged(it) },
-                colors = SwitchDefaults.colors(checkedThumbColor = CycleSafeYellow)
+                colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.background)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text("Show Dangerous POIs only")

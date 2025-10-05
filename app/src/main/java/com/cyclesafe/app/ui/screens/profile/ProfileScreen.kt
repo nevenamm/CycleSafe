@@ -1,12 +1,8 @@
 package com.cyclesafe.app.ui.screens.profile
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -14,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
@@ -24,32 +21,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.cyclesafe.app.R
 import com.cyclesafe.app.ui.navigation.Screen
-import com.cyclesafe.app.ui.theme.CycleSafeYellow
+import com.cyclesafe.app.utils.CloudinaryUploader
+import com.cyclesafe.app.utils.rememberImagePicker
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import java.io.File
-import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.*
-
-private fun getTransformedImageUrl(originalUrl: String): String {
-    val parts = originalUrl.split("/upload/")
-    if (parts.size == 2) {
-        return "${parts[0]}/upload/w_256,h_256,c_fill,g_face/${parts[1]}"
-    }
-    return originalUrl
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,12 +44,7 @@ fun ProfileScreen(navController: NavController, onLogout: () -> Unit, viewModel:
     val isUpdatingProfile by viewModel.isUpdatingProfile.collectAsState()
     val isUpdatingPassword by viewModel.isUpdatingPassword.collectAsState()
 
-    var showDialog by remember { mutableStateOf(false) }
-    var tempUri by remember { mutableStateOf<Uri?>(null) }
-    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-
 
     LaunchedEffect(Unit) {
         viewModel.toastMessage.collectLatest { message ->
@@ -75,81 +52,8 @@ fun ProfileScreen(navController: NavController, onLogout: () -> Unit, viewModel:
         }
     }
 
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
+    val showImagePicker = rememberImagePicker { uri ->
         viewModel.onImageUriChange(uri)
-    }
-
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success) {
-            viewModel.onImageUriChange(tempUri)
-        }
-    }
-
-    fun createImageUri(): Uri? {
-        try {
-            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val imageFile = File.createTempFile("JPEG_${timeStamp}_", ".jpg", context.externalCacheDir)
-            return FileProvider.getUriForFile(context, "${context.packageName}.provider", imageFile)
-        } catch (e: IOException) {
-            scope.launch {
-                snackbarHostState.showSnackbar("Failed to create image file")
-            }
-            return null
-        }
-    }
-
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
-            val uri = createImageUri()
-            if (uri != null) {
-                tempUri = uri
-                cameraLauncher.launch(uri)
-            }
-        } else {
-            scope.launch {
-                snackbarHostState.showSnackbar("Camera permission is required to take photos.")
-            }
-        }
-    }
-
-    if (showDialog) {
-        AlertDialog(
-            onDismissRequest = { showDialog = false },
-            title = { Text("Choose an option") },
-            text = { Text("Select a profile photo from the gallery or take a new one with the camera.") },
-            confirmButton = {
-                Button(onClick = {
-                    showDialog = false
-                    when (PackageManager.PERMISSION_GRANTED) {
-                        ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.CAMERA
-                        ) -> {
-                            val uri = createImageUri()
-                            if (uri != null) {
-                                tempUri = uri
-                                cameraLauncher.launch(uri)
-                            }
-                        }
-                        else -> {
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                    }
-                }) { Text("Camera") }
-            },
-            dismissButton = {
-                Button(onClick = {
-                    showDialog = false
-                    galleryLauncher.launch("image/*")
-                }) { Text("Gallery") }
-            }
-        )
     }
 
     Scaffold(
@@ -161,9 +65,20 @@ fun ProfileScreen(navController: NavController, onLogout: () -> Unit, viewModel:
                     Image(
                         painter = painterResource(id = R.mipmap.bicycle_icon),
                         contentDescription = "App Logo",
-                        colorFilter = ColorFilter.tint(CycleSafeYellow),
                         modifier = Modifier.size(40.dp).padding(start = 8.dp)
                     )
+                },
+                actions = {
+                    IconButton(onClick = {
+                        viewModel.logout()
+                        onLogout()
+                    }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Logout,
+                            contentDescription = "Log out",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             )
         },
@@ -172,30 +87,31 @@ fun ProfileScreen(navController: NavController, onLogout: () -> Unit, viewModel:
                 modifier = Modifier.fillMaxWidth(),
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
-                            NavigationBarItem(
-                                selected = false,
-                                onClick = { navController.navigate(Screen.Home.route) { popUpTo(Screen.Home.route) } },
-                                icon = { Icon(Icons.Default.Home, contentDescription = "Map") },
-                                label = { Text("Map") }
-                            )
-                            NavigationBarItem(
-                                selected = false,
-                                onClick = { navController.navigate(Screen.PoiList.route) { popUpTo(Screen.Home.route) } },
-                                icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "POIs") },
-                                label = { Text("POIs") }
-                            )
-                            NavigationBarItem(
-                                selected = false,
-                                onClick = { navController.navigate(Screen.Ranking.route) { popUpTo(Screen.Home.route) } },
-                                icon = { Icon(Icons.Default.Star, contentDescription = "Ranking") },
-                                label = { Text("Ranking") }
-                            )
-                            NavigationBarItem(
-                                selected = true,
-                                onClick = { /* Already on profile */ },
-                                icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
-                                label = { Text("Profile") }
-                            )            }
+                NavigationBarItem(
+                    selected = false,
+                    onClick = { navController.navigate(Screen.Home.route) { popUpTo(Screen.Home.route) } },
+                    icon = { Icon(Icons.Default.Home, contentDescription = "Map") },
+                    label = { Text("Map") }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = { navController.navigate(Screen.PoiList.route) { popUpTo(Screen.Home.route) } },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "POIs") },
+                    label = { Text("POIs") }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = { navController.navigate(Screen.Ranking.route) { popUpTo(Screen.Home.route) } },
+                    icon = { Icon(Icons.Default.Star, contentDescription = "Ranking") },
+                    label = { Text("Ranking") }
+                )
+                NavigationBarItem(
+                    selected = true,
+                    onClick = { /* Already on profile */ },
+                    icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
+                    label = { Text("Profile") }
+                )
+            }
         }
     ) { paddingValues ->
         Column(
@@ -220,14 +136,16 @@ fun ProfileScreen(navController: NavController, onLogout: () -> Unit, viewModel:
                                 .size(128.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surface)
-                                .clickable { showDialog = true },
+                                .border(1.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                .clickable { showImagePicker() },
                             contentAlignment = Alignment.Center
                         ) {
                             val painter = if (imageUri != null) {
                                 rememberAsyncImagePainter(model = imageUri)
                             } else if (user.imageUrl != null) {
-                                rememberAsyncImagePainter(model = getTransformedImageUrl(user.imageUrl))
-                            } else {
+                                rememberAsyncImagePainter(model = CloudinaryUploader.getTransformedImageUrl(user.imageUrl))
+                            }
+                            else {
                                 painterResource(id = R.drawable.ic_launcher_foreground)
                             }
                             Image(
@@ -238,8 +156,8 @@ fun ProfileScreen(navController: NavController, onLogout: () -> Unit, viewModel:
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
-                        TextButton(onClick = { showDialog = true }) {
-                            Text("Change Profile Photo", color = CycleSafeYellow)
+                        TextButton(onClick = { showImagePicker() }) {
+                            Text("Change Profile Photo", color = MaterialTheme.colorScheme.primary)
                         }
 
                         Spacer(modifier = Modifier.height(24.dp))
@@ -271,13 +189,13 @@ fun ProfileScreen(navController: NavController, onLogout: () -> Unit, viewModel:
                         Button(
                             onClick = { viewModel.updateProfile() },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = CycleSafeYellow),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             enabled = !isUpdatingProfile
                         ) {
                             if (isUpdatingProfile) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onSecondary)
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                             } else {
-                                Text("Save Changes", color = MaterialTheme.colorScheme.onSecondary)
+                                Text("Save Changes", color = MaterialTheme.colorScheme.onPrimary)
                             }
                         }
 
@@ -310,26 +228,16 @@ fun ProfileScreen(navController: NavController, onLogout: () -> Unit, viewModel:
                         Button(
                             onClick = { viewModel.updatePassword() },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = CycleSafeYellow),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             enabled = !isUpdatingPassword
                         ) {
                             if (isUpdatingPassword) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onSecondary)
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                             } else {
-                                Text("Change Password", color = MaterialTheme.colorScheme.onSecondary)
+                                Text("Change Password", color = MaterialTheme.colorScheme.onPrimary)
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(32.dp))
-                        Button(
-                            onClick = {
-                                viewModel.logout()
-                                onLogout()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Text("Log out")
-                        }
                         Spacer(modifier = Modifier.height(32.dp))
                     }
                 }

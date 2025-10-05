@@ -3,6 +3,7 @@ package com.cyclesafe.app.data.repository
 import com.cyclesafe.app.data.model.User
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.SetOptions.merge
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -56,6 +57,6 @@ class UserRepository(private val firestore: FirebaseFirestore) {
     }
 
     suspend fun updateUser(user: User) {
-        firestore.collection("users").document(user.uid).set(user, com.google.firebase.firestore.SetOptions.merge()).await()
+        firestore.collection("users").document(user.uid).set(user, merge()).await()
     }
 }

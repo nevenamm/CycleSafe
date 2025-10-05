@@ -2,9 +2,27 @@ package com.cyclesafe.app.ui.screens.login
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
@@ -15,7 +33,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.cyclesafe.app.R
 import com.cyclesafe.app.ui.navigation.Screen
-import com.cyclesafe.app.ui.theme.CycleSafeYellow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,7 +54,6 @@ fun LoginScreen(navController: NavController, onLoginSuccess: () -> Unit, viewMo
             Image(
                 painter = painterResource(id = R.mipmap.bicycle_icon),
                 contentDescription = "App Logo",
-                colorFilter = ColorFilter.tint(CycleSafeYellow),
                 modifier = Modifier.size(100.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -67,18 +83,18 @@ fun LoginScreen(navController: NavController, onLoginSuccess: () -> Unit, viewMo
             Button(
                 onClick = { viewModel.loginUser() },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = CycleSafeYellow),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 enabled = loginState !is LoginState.Loading
             ) {
                 if (loginState is LoginState.Loading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onSecondary)
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
-                    Text("Login", color = MaterialTheme.colorScheme.onSecondary)
+                    Text("Login", color = MaterialTheme.colorScheme.onPrimary)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
             TextButton(onClick = { navController.navigate(Screen.Registration.route) }) {
-                Text("Don't have an account? Register", color = CycleSafeYellow)
+                Text("Don't have an account? Register", color = MaterialTheme.colorScheme.primary)
             }
 
             Spacer(modifier = Modifier.height(16.dp))

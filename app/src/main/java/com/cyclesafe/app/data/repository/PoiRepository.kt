@@ -5,9 +5,13 @@ import com.cyclesafe.app.data.model.Poi
 import com.cyclesafe.app.data.model.PoiType
 import com.cyclesafe.app.data.model.Rating
 import com.cyclesafe.app.ui.screens.poi_list.SortOrder
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
@@ -87,30 +91,18 @@ class PoiRepository(private val firestore: FirebaseFirestore) {
         awaitClose { listenerRegistration.remove() }
     }
 
-    fun getRatingForUser(poiId: String, userId: String): Flow<Rating?> = callbackFlow {
-        val listenerRegistration = firestore.collection("pois").document(poiId).collection("ratings").document(userId)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    close(error)
-                    return@addSnapshotListener
-                }
-                val rating = snapshot?.toObject(Rating::class.java)
-                trySend(rating)
-            }
-        awaitClose { listenerRegistration.remove() }
-    }
-
     suspend fun addRating(poiId: String, userId: String, rating: Float) {
-        val ratingRef = firestore.collection("pois").document(poiId).collection("ratings").document(userId)
+        val ratingRef = firestore.collection("pois").document(poiId).collection("ratings").document()
         val poiRef = firestore.collection("pois").document(poiId)
 
         firestore.runTransaction { transaction ->
             val poiSnapshot = transaction.get(poiRef)
-            val oldRatingDoc = transaction.get(ratingRef)
+            val ratingCount = poiSnapshot.getLong("ratingCount")?.toInt() ?: 0
+            val averageRating = poiSnapshot.getDouble("averageRating")?.toFloat() ?: 0f
 
-            val oldRating = oldRatingDoc.toObject(Rating::class.java)?.rating ?: 0f
-            val newRatingCount = poiSnapshot.getLong("ratingCount")!!.toInt() + if (oldRatingDoc.exists()) 0 else 1
-            val newAverageRating = (poiSnapshot.getDouble("averageRating")!! * (newRatingCount - 1) + rating - oldRating) / newRatingCount
+            val newRatingCount = ratingCount + 1
+            val newTotalRating = (averageRating * ratingCount) + rating
+            val newAverageRating = if (newRatingCount > 0) newTotalRating / newRatingCount else 0f
 
             transaction.set(ratingRef, Rating(poiId, userId, rating))
             transaction.update(poiRef, "averageRating", newAverageRating)
@@ -151,8 +143,30 @@ class PoiRepository(private val firestore: FirebaseFirestore) {
             imageUrl = imageUrl,
             authorId = authorId,
             authorName = authorName,
-            createdAt = com.google.firebase.Timestamp.now()
+            createdAt = Timestamp.now()
         )
         firestore.collection("pois").add(poi).await()
+    }
+
+    suspend fun deletePoi(poiId: String): Unit = coroutineScope {
+        val poiRef = firestore.collection("pois").document(poiId)
+
+        val deleteCommentsJob = async {
+            val commentsSnapshot = poiRef.collection("comments").get().await()
+            for (doc in commentsSnapshot.documents) {
+                doc.reference.delete().await()
+            }
+        }
+
+        val deleteRatingsJob = async {
+            val ratingsSnapshot = poiRef.collection("ratings").get().await()
+            for (doc in ratingsSnapshot.documents) {
+                doc.reference.delete().await()
+            }
+        }
+
+        awaitAll(deleteCommentsJob, deleteRatingsJob)
+
+        poiRef.delete().await()
     }
 }

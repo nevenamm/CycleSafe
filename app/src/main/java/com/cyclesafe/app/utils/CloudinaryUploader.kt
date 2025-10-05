@@ -29,4 +29,12 @@ object CloudinaryUploader {
             }).dispatch()
         }
     }
+
+    fun getTransformedImageUrl(originalUrl: String): String {
+        val parts = originalUrl.split("/upload/")
+        if (parts.size == 2) {
+            return "${parts[0]}/upload/w_256,h_256,c_fill,g_face/${parts[1]}"
+        }
+        return originalUrl
+    }
 }

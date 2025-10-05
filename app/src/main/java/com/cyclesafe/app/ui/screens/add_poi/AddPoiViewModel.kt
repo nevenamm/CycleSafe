@@ -12,12 +12,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import java.io.File
-import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.*
-import androidx.core.content.FileProvider
-import android.content.Context
 import com.cyclesafe.app.data.model.PoiType
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -53,15 +47,20 @@ class AddPoiViewModel(application: Application) : AndroidViewModel(application) 
     private val _imageUri = MutableStateFlow<Uri?>(null)
     val imageUri = _imageUri.asStateFlow()
 
-    private val _tempImageUri = MutableStateFlow<Uri?>(null)
-    val tempImageUri = _tempImageUri.asStateFlow()
+    private val _nameError = MutableStateFlow<String?>(null)
+    val nameError = _nameError.asStateFlow()
+
+    private val _descriptionError = MutableStateFlow<String?>(null)
+    val descriptionError = _descriptionError.asStateFlow()
 
     fun onNameChange(name: String) {
         _name.value = name
+        validateName()
     }
 
     fun onDescriptionChange(description: String) {
         _description.value = description
+        validateDescription()
     }
 
     fun onPoiTypeSelected(poiType: PoiType) {
@@ -76,31 +75,26 @@ class AddPoiViewModel(application: Application) : AndroidViewModel(application) 
         _imageUri.value = uri
     }
 
-    fun onTempImageUriChange(uri: Uri?) {
-        _tempImageUri.value = uri
+    private fun validateName() {
+        if (_name.value.isBlank()) {
+            _nameError.value = "Name cannot be empty"
+        } else {
+            _nameError.value = null
+        }
     }
 
-    fun createImageUri(context: Context): Uri? {
-        try {
-            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val imageFile = File.createTempFile("JPEG_${timeStamp}_", ".jpg", context.externalCacheDir)
-            return FileProvider.getUriForFile(context, "${context.packageName}.provider", imageFile)
-        } catch (e: IOException) {
-            _addPoiState.value = AddPoiState.Error("Failed to create image file: ${e.localizedMessage}")
-            return null
+    private fun validateDescription() {
+        if (_description.value.isBlank()) {
+            _descriptionError.value = "Description cannot be empty"
+        } else {
+            _descriptionError.value = null
         }
     }
 
     private fun validateInput(): Boolean {
-        if (_name.value.isBlank()) {
-            _addPoiState.value = AddPoiState.Error("Name cannot be empty")
-            return false
-        }
-        if (_description.value.isBlank()) {
-            _addPoiState.value = AddPoiState.Error("Description cannot be empty")
-            return false
-        }
-        return true
+        validateName()
+        validateDescription()
+        return _nameError.value == null && _descriptionError.value == null
     }
 
     fun addPoi(latitude: Double, longitude: Double) {
