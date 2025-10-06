@@ -18,6 +18,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.cyclesafe.app.location.LocationViewModel
 import com.cyclesafe.app.data.model.PoiType
 import com.cyclesafe.app.utils.rememberImagePicker
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,6 +46,7 @@ fun AddPoiScreen(navController: NavController, locationViewModel: LocationViewMo
         when (val state = addPoiState) {
             is AddPoiState.Success -> {
                 snackbarHostState.showSnackbar("POI added successfully!")
+                delay(20)
                 navController.popBackStack()
             }
             is AddPoiState.Error -> {

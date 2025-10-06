@@ -41,16 +41,35 @@ fun PoiDetailsScreen(
     val deleteState by viewModel.deleteState.collectAsState()
 
     var showDeleteDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    var isSubmitting by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.eventFlow.collect {
+            when (it) {
+                is UiEvent.ShowSnackbar -> {
+                    snackbarHostState.showSnackbar(it.message)
+                }
+                is UiEvent.SubmissionInProgress -> {
+                    isSubmitting = true
+                }
+                is UiEvent.SubmissionFinished -> {
+                    isSubmitting = false
+                }
+            }
+        }
+    }
 
     LaunchedEffect(deleteState) {
         if (deleteState is DeleteState.Success) {
             navController.popBackStack()
         } else if (deleteState is DeleteState.Error) {
-            // Optionally show a snackbar with the error message
+            snackbarHostState.showSnackbar((deleteState as DeleteState.Error).message)
         }
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Point of Interest") },
@@ -76,7 +95,7 @@ fun PoiDetailsScreen(
                 }
             }
             is PoiDetailsState.Success -> {
-                PoiDetailsSuccessContent(state, viewModel, paddingValues)
+                PoiDetailsSuccessContent(state, viewModel, paddingValues, isSubmitting)
             }
             is PoiDetailsState.Error -> {
                 Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
@@ -118,7 +137,8 @@ fun PoiDetailsScreen(
 private fun PoiDetailsSuccessContent(
     state: PoiDetailsState.Success,
     viewModel: PoiDetailsViewModel,
-    paddingValues: PaddingValues
+    paddingValues: PaddingValues,
+    isSubmitting: Boolean
 ) {
     val userComment by viewModel.userComment.collectAsState()
     val userRating by viewModel.userRating.collectAsState()
@@ -135,7 +155,7 @@ private fun PoiDetailsSuccessContent(
         }
 
         item {
-            UserInputCard(userRating, userComment, onRatingChange = { viewModel.onUserRatingChange(it) }, viewModel)
+            UserInputCard(userRating, userComment, { viewModel.onUserRatingChange(it) }, viewModel, isSubmitting)
         }
 
         if (state.comments.isNotEmpty()) {
@@ -201,9 +221,7 @@ private fun PoiDetailsCard(state: PoiDetailsState.Success) {
 }
 
 @Composable
-private fun UserInputCard(userRating: Float, userComment: String, onRatingChange: (Float) -> Unit, viewModel: PoiDetailsViewModel) {
-    val isSubmitting by viewModel.isSubmitting.collectAsState()
-
+private fun UserInputCard(userRating: Float, userComment: String, onRatingChange: (Float) -> Unit, viewModel: PoiDetailsViewModel, isSubmitting: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(

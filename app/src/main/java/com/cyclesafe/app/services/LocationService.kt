@@ -10,6 +10,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.cyclesafe.app.R
 import com.cyclesafe.app.data.model.Poi
+import com.cyclesafe.app.data.preferences.UserPreferencesRepository
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
@@ -17,6 +18,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
@@ -26,12 +28,15 @@ class LocationService : Service() {
     private lateinit var locationCallback: LocationCallback
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
     private var dangerousPois = listOf<Poi>()
+    private lateinit var prefsRepository: UserPreferencesRepository
+    private val recentlyNotifiedPois = mutableMapOf<String, Long>()
 
     override fun onCreate() {
         super.onCreate()
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         createNotificationChannel()
         fetchDangerousPois() // fetch only dangerous POIs, updates when new POI is added
+        prefsRepository = Injection.provideUserPreferencesRepository(applicationContext)
     }
 
     // called when the LocationViewModel calls startForegroundService()
@@ -62,8 +67,10 @@ class LocationService : Service() {
                         userRef.update("lastLocation", GeoPoint(location.latitude, location.longitude))
                     }
 
-                    val job = CoroutineScope(Dispatchers.Default).launch {
-                        checkNearbyPois(LatLng(location.latitude, location.longitude))
+                    CoroutineScope(Dispatchers.Default).launch {
+                        if (prefsRepository.isTrackingEnabled.first()) {
+                            checkNearbyPois(LatLng(location.latitude, location.longitude))
+                        }
                     }
                 }
             }
@@ -124,8 +131,13 @@ class LocationService : Service() {
                 poiLocation.longitude,
                 distance
             )
-            if (distance[0] < 100) { // 100 meters radius
-                sendNotification(this, poi)
+            if (distance[0] < 800) { // 800 meters radius
+                val now = System.currentTimeMillis()
+                val lastNotificationTime = recentlyNotifiedPois[poi.firestoreId]
+                if (lastNotificationTime == null || now - lastNotificationTime > TimeUnit.MINUTES.toMillis(5)) {
+                    sendNotification(this, poi)
+                    recentlyNotifiedPois[poi.firestoreId] = now
+                }
             }
         }
     }

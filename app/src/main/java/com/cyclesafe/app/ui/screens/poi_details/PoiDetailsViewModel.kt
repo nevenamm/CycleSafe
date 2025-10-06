@@ -24,6 +24,12 @@ sealed class DeleteState {
     data class Error(val message: String) : DeleteState()
 }
 
+sealed class UiEvent {
+    data class ShowSnackbar(val message: String) : UiEvent()
+    object SubmissionInProgress : UiEvent()
+    object SubmissionFinished : UiEvent()
+}
+
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class PoiDetailsViewModel(application: Application, private val poiId: String) : AndroidViewModel(application) {
 
@@ -34,14 +40,15 @@ class PoiDetailsViewModel(application: Application, private val poiId: String) :
     private val _poiDetailsState = MutableStateFlow<PoiDetailsState>(PoiDetailsState.Loading)
     val poiDetailsState = _poiDetailsState.asStateFlow()
 
+    private val _eventFlow = MutableSharedFlow<UiEvent>()
+    val eventFlow = _eventFlow.asSharedFlow()
+
     private val _userComment = MutableStateFlow("")
     val userComment = _userComment.asStateFlow()
 
     private val _userRating = MutableStateFlow(0f)
     val userRating = _userRating.asStateFlow()
 
-    private val _isSubmitting = MutableStateFlow(false)
-    val isSubmitting = _isSubmitting.asStateFlow()
 
     private val _deleteState = MutableStateFlow<DeleteState>(DeleteState.Idle)
     val deleteState = _deleteState.asStateFlow()
@@ -102,18 +109,24 @@ class PoiDetailsViewModel(application: Application, private val poiId: String) :
             if (poiState !is PoiDetailsState.Success) return@launch
 
             val rating = _userRating.value
+            val comment = _userComment.value
 
-            _isSubmitting.value = true
+            if (rating == 0f && comment.isBlank()) {
+                _eventFlow.emit(UiEvent.ShowSnackbar("Rating and comment cannot both be empty."))
+                return@launch
+            }
+
+            _eventFlow.emit(UiEvent.SubmissionInProgress)
             try {
                 if (rating > 0f) {
                     poiRepository.addRating(poiId, userId, rating)
                     userRepository.awardPoints(userId, 5) // 5 points for rating
                 }
 
-                if (_userComment.value.isNotBlank()) {
+                if (comment.isNotBlank()) {
                     val user = userRepository.getUser(userId).first()
                     val userName = "${user.firstName} ${user.lastName}"
-                    poiRepository.addComment(poiId, userId, userName, _userComment.value)
+                    poiRepository.addComment(poiId, userId, userName, comment)
                     userRepository.awardPoints(userId, 2) // 2 points for commenting
                 }
 
@@ -121,13 +134,16 @@ class PoiDetailsViewModel(application: Application, private val poiId: String) :
                 _userComment.value = ""
                 _userRating.value = 0f
 
+                _eventFlow.emit(UiEvent.ShowSnackbar("Rating and comment submitted successfully."))
+
                 // Refresh POI details
                 getPoiDetails()
 
             } catch (e: Exception) {
+                _eventFlow.emit(UiEvent.ShowSnackbar(e.message ?: "An error occurred."))
                 android.util.Log.e("PoiDetailsViewModel", "Error adding rating and comment", e)
             } finally {
-                _isSubmitting.value = false
+                _eventFlow.emit(UiEvent.SubmissionFinished)
             }
         }
     }

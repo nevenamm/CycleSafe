@@ -18,6 +18,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -75,39 +77,107 @@ fun PoiListScreen(navController: NavController, viewModel: PoiListViewModel = vi
             }
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
-        ) {
+        val configuration = LocalConfiguration.current
+        val orientation = configuration.orientation
+
+        if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            PoiListContentLandscape(navController, viewModel, uiState, paddingValues)
+        } else {
+            PoiListContentPortrait(navController, viewModel, uiState, paddingValues)
+        }
+    }
+}
+
+@Composable
+private fun PoiListContentPortrait(
+    navController: NavController,
+    viewModel: PoiListViewModel,
+    uiState: PoiListUiState,
+    paddingValues: PaddingValues
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+            .padding(16.dp)
+    ) {
+        SearchAndFilterUi(viewModel)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        when (val state = uiState) {
+            is PoiListUiState.Loading -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+            is PoiListUiState.Success -> {
+                if (state.pois.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No results found.")
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(state.pois) { poiListItem ->
+                            PoiListItem(navController, poiListItem)
+                        }
+                    }
+                }
+            }
+            is PoiListUiState.Error -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(state.message)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PoiListContentLandscape(
+    navController: NavController,
+    viewModel: PoiListViewModel,
+    uiState: PoiListUiState,
+    paddingValues: PaddingValues
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
             SearchAndFilterUi(viewModel)
             Spacer(modifier = Modifier.height(16.dp))
+        }
 
-            when (val state = uiState) {
-                is PoiListUiState.Loading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        when (val state = uiState) {
+            is PoiListUiState.Loading -> {
+                item {
+                    Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
                 }
-                is PoiListUiState.Success -> {
-                    if (state.pois.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            }
+            is PoiListUiState.Success -> {
+                if (state.pois.isEmpty()) {
+                    item {
+                        Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
                             Text("No results found.")
                         }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(state.pois) { poiListItem ->
-                                PoiListItem(navController, poiListItem)
-                            }
-                        }
+                    }
+                } else {
+                    items(state.pois) { poiListItem ->
+                        PoiListItem(navController, poiListItem)
                     }
                 }
-                is PoiListUiState.Error -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            }
+            is PoiListUiState.Error -> {
+                item {
+                    Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
                         Text(state.message)
                     }
                 }
